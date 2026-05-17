@@ -1,72 +1,35 @@
 # API Security Agent
 
-Autonomous API penetration testing and remediation platform powered by **Cursor SDK**.
+**API Security Agent** is an autonomous API security testing and remediation platform built with **Next.js** and the **Cursor SDK**.
 
-Paste a GitHub repo link → clone → discover OpenAPI → map attack surface → simulate vulnerability scans → explain findings → auto-patch with Cursor SDK → export security reports.
+Paste a GitHub repository URL → the app clones the repo, discovers OpenAPI/Swagger specs, maps the attack surface, runs rule-based vulnerability simulations, explains each finding with OWASP/CWE context, and can auto-patch issues via Cursor. It also generates printable security reports.
+
+---
+
+## What it does
+
+1. **Clone** — Fetches a public or private GitHub repo (private repos need `GITHUB_TOKEN`). Git must be installed on the machine running the server.
+2. **Discover specs** — Searches the clone for OpenAPI 3 or Swagger 2 files (JSON and YAML).
+3. **Map the API** — Builds a graph of endpoints with auth requirements, sensitive fields, parameters, tags, and per-endpoint risk scores.
+4. **Plan checks** — Selects vulnerability categories per endpoint based on path shape, HTTP method, auth metadata, and risk.
+5. **Simulate scans** — Produces findings from static analysis of the spec (not live HTTP traffic against a running API).
+6. **Analyze** — Adds severity, business impact, plain-language explanation, and remediation guidance.
+7. **Remediate** — Optional **Auto-patch with Cursor SDK** on each finding; without `CURSOR_API_KEY`, returns demo patch diffs.
+8. **Report** — Executive summary, compliance-style checklist, and PDF export from the scan dashboard.
+
+**In short:** paste a repo → scan APIs for common issues → review findings → optionally auto-remediate with Cursor.
+
+---
 
 ## Features
 
-- **GitHub clone** — clones the repo (public or private with `GITHUB_TOKEN`)
-- **Spec discovery** — finds OpenAPI 3 / Swagger 2 (JSON & YAML) in the clone
-- **API structure mapper** — endpoints, auth, sensitive fields, risk scores
-- **AI scan planner** — rule-based check selection per endpoint
-- **Vulnerability simulator** — IDOR, broken auth, injection, mass assignment, rate limits, and more
-- **Finding analyzer** — severity, business impact, OWASP/CWE mapping
-- **Cursor SDK remediation** — `Agent.prompt` against your repo (or simulated diffs without API key)
-- **Security reports** — executive summary, compliance checklist, printable PDF
-
-## Quick start
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000), paste a GitHub repo URL, then click **Start security scan**. Git must be installed on the server.
-
-## Cursor SDK remediation
-
-1. Copy `.env.example` to `.env.local`
-2. Set `CURSOR_API_KEY` from [Cursor Dashboard](https://cursor.com/settings)
-3. Paste a GitHub repo URL in the scan form (set `GITHUB_TOKEN` for private repos)
-4. On any finding, click **Auto-patch with Cursor SDK**
-
-Without an API key, the platform returns **simulated patch diffs** for demo purposes.
-
-## Architecture
-
-```
-app/
-  page.tsx                 # Upload landing
-  scan/[id]/               # Scan dashboard (progress, map, findings, report)
-  api/
-    scan/                  # POST upload, GET status
-    remediate/             # POST trigger Cursor remediation
-lib/
-  openapi/                 # Parser + API graph mapper
-  scanner/                 # Planner, simulator, analyzer, pipeline
-  remediation/             # Cursor SDK agent
-  reports/                 # Report generator
-  store.ts                 # In-memory job store (MVP)
-```
-
-## API routes
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/scan` | `{ repoUrl }` — clones GitHub repo, discovers OpenAPI |
-| GET | `/api/scan/:id` | Poll scan job |
-| POST | `/api/remediate` | `{ scanId, findingId }` |
-| GET | `/api/scans` | List recent scans |
-
-## Tech stack
-
-- Next.js 16 (App Router)
-- TypeScript
-- Tailwind CSS 4
-- [@cursor/sdk](https://cursor.com/docs/api/sdk/typescript)
-- js-yaml
-
-## License
-
-MIT
+| Area | Details |
+|------|---------|
+| **GitHub** | Clone from URL; supports `owner/repo` shorthand |
+| **OpenAPI** | Parser + discovery across the repo tree |
+| **Attack surface** | Endpoint list, auth vs public counts, high-risk highlights |
+| **Scan planner** | Rule-based check selection (not a live LLM call in the planner step) |
+| **Simulator** | IDOR, broken auth, broken access control, injection, mass assignment, sensitive data exposure, misconfiguration, rate limiting |
+| **Standards** | OWASP API Top 10 (2023) and CWE references on findings |
+| **Remediation** | [`@cursor/sdk`](https://cursor.com/docs/api/sdk/typescript) `Agent.prompt` against the cloned repo |
+| **UI** | Upload landing, live scan progress, API map, findings panel, patch diff viewer, report view |
