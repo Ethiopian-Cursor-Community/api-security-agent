@@ -1,0 +1,681 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vulnerable Demo API",
+    "version": "1.0.0",
+    "description": "Intentionally vulnerable API specification for scanner and remediation demos only. Do not use this design in production."
+  },
+  "servers": [
+    {
+      "url": "https://api.demo.local/v1",
+      "description": "Demo environment"
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Authentication endpoints with missing abuse controls"
+    },
+    {
+      "name": "users",
+      "description": "User resources with broken object authorization examples"
+    },
+    {
+      "name": "admin",
+      "description": "Privileged operations exposed without proper authorization"
+    },
+    {
+      "name": "products",
+      "description": "Search endpoints with injection-prone query parameters"
+    },
+    {
+      "name": "orders",
+      "description": "Tenant-owned objects with BOLA/IDOR examples"
+    },
+    {
+      "name": "payments",
+      "description": "Sensitive payment data exposure examples"
+    },
+    {
+      "name": "internal",
+      "description": "Debug and internal operations exposed in the public spec"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "User login without documented throttling",
+        "description": "Demo vulnerability: login has no rate-limit, lockout, MFA, or abuse-control documentation.",
+        "operationId": "loginUser",
+        "x-demo-vulnerabilities": [
+          "Missing rate limiting",
+          "Credential stuffing risk",
+          "Long-lived tokens returned directly"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "additionalProperties": true,
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "victim@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "Password123!"
+                  },
+                  "rememberMe": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access token issued without documented session hardening",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string",
+                      "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo"
+                    },
+                    "refreshToken": {
+                      "type": "string",
+                      "example": "refresh_demo_token"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/auth/password-reset": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Request password reset without throttling",
+        "description": "Demo vulnerability: reset requests are unauthenticated and have no documented rate limit or anti-enumeration behavior.",
+        "operationId": "requestPasswordReset",
+        "x-demo-vulnerabilities": [
+          "Missing rate limiting",
+          "Potential account enumeration"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "victim@example.com"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Reset email queued"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["users"],
+        "summary": "Publicly list all users",
+        "description": "Demo vulnerability: sensitive user listing is exposed without authentication.",
+        "operationId": "listUsers",
+        "x-demo-vulnerabilities": [
+          "Missing authentication",
+          "Sensitive data exposure"
+        ],
+        "responses": {
+          "200": {
+            "description": "All users, including sensitive fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["users"],
+        "summary": "Create user with client-controlled role",
+        "description": "Demo vulnerability: public registration accepts role and isAdmin fields directly from the request body.",
+        "operationId": "createUser",
+        "x-demo-vulnerabilities": [
+          "Mass assignment",
+          "Privilege escalation",
+          "Missing authentication"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "additionalProperties": true,
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "new-user@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "Password123!"
+                  },
+                  "role": {
+                    "type": "string",
+                    "example": "admin"
+                  },
+                  "isAdmin": {
+                    "type": "boolean",
+                    "example": true
+                  },
+                  "creditCardNumber": {
+                    "type": "string",
+                    "example": "4111111111111111"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created"
+          }
+        }
+      }
+    },
+    "/users/{userId}": {
+      "get": {
+        "tags": ["users"],
+        "summary": "User profile by id",
+        "description": "Returns profile data after authenticating the caller and verifying object-level authorization: the authenticated subject matches path userId (e.g., JWT sub claim equals userId) or holds an administrator read scope per policy. Cross-tenant enumeration is forbidden; use 403/404 consistently with product policy.",
+        "operationId": "getUserById",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-requires-object-ownership": true,
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "user_0002"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized user profile for the requested id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token"
+          },
+          "403": {
+            "description": "Forbidden — authenticated caller is not authorized for this userId"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["users"],
+        "summary": "Update any user profile",
+        "description": "Demo vulnerability: authenticated endpoint does not declare object ownership checks and accepts arbitrary fields.",
+        "operationId": "updateUserById",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-demo-vulnerabilities": [
+          "Mass assignment",
+          "Missing object ownership check",
+          "Privilege escalation"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "user_0002"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "role": {
+                    "type": "string",
+                    "example": "admin"
+                  },
+                  "isAdmin": {
+                    "type": "boolean",
+                    "example": true
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "tags": ["orders"],
+        "summary": "Fetch order by id without ownership metadata",
+        "description": "Demo vulnerability: endpoint requires a token but does not document tenant or object ownership enforcement.",
+        "operationId": "getOrderById",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-demo-vulnerabilities": [
+          "Broken object level authorization",
+          "Tenant data leakage"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "order_1002"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order data for supplied id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/search": {
+      "get": {
+        "tags": ["products"],
+        "summary": "Search products with raw query parameters",
+        "description": "Demo vulnerability: free-form query, sort, and filter parameters may be concatenated into backend SQL or NoSQL queries.",
+        "operationId": "searchProducts",
+        "x-demo-vulnerabilities": [
+          "SQL injection risk",
+          "NoSQL injection risk"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "' OR '1'='1"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "price desc"
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "{\"$where\":\"sleep(5000)\"}"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results"
+          }
+        }
+      }
+    },
+    "/payments/cards/{cardId}": {
+      "get": {
+        "tags": ["payments"],
+        "summary": "Return full payment card details",
+        "description": "Demo vulnerability: response includes full PAN and CVV, and path object authorization is not documented.",
+        "operationId": "getPaymentCard",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-demo-vulnerabilities": [
+          "Sensitive data exposure",
+          "Broken object level authorization",
+          "PCI data leakage"
+        ],
+        "parameters": [
+          {
+            "name": "cardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "card_1234"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full card data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/settings": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Read admin settings without authorization",
+        "description": "Demo vulnerability: privileged admin endpoint is public in the specification.",
+        "operationId": "getAdminSettings",
+        "x-demo-vulnerabilities": [
+          "Broken function level authorization",
+          "Missing authentication"
+        ],
+        "responses": {
+          "200": {
+            "description": "System settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "maintenanceMode": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "allowUserRoleOverride": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "jwtSecret": {
+                      "type": "string",
+                      "example": "demo-secret-do-not-use"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/upload": {
+      "post": {
+        "tags": ["files"],
+        "summary": "Upload arbitrary files to a caller-supplied path",
+        "description": "Demo vulnerability: unauthenticated upload accepts targetPath and does not document content type, size, malware, or path traversal protections.",
+        "operationId": "uploadFile",
+        "x-demo-vulnerabilities": [
+          "Unrestricted file upload",
+          "Path traversal",
+          "Missing authentication"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "targetPath": {
+                    "type": "string",
+                    "example": "../../public/shell.jsp"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File uploaded"
+          }
+        }
+      }
+    },
+    "/internal/debug": {
+      "get": {
+        "tags": ["internal"],
+        "summary": "Expose internal debug data",
+        "description": "Demo vulnerability: internal diagnostics are included in the public API surface.",
+        "operationId": "getDebugInfo",
+        "x-demo-vulnerabilities": [
+          "Security misconfiguration",
+          "Secret exposure",
+          "Information disclosure"
+        ],
+        "responses": {
+          "200": {
+            "description": "Debug data and environment secrets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nodeEnv": {
+                      "type": "string",
+                      "example": "production"
+                    },
+                    "databaseUrl": {
+                      "type": "string",
+                      "example": "postgres://demo:password@db.internal:5432/app"
+                    },
+                    "jwtSecret": {
+                      "type": "string",
+                      "example": "demo-secret-do-not-use"
+                    },
+                    "apiKeys": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": ["sk_test_demo_key"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "user_0001"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "victim@example.com"
+          },
+          "role": {
+            "type": "string",
+            "example": "admin"
+          },
+          "isAdmin": {
+            "type": "boolean",
+            "example": true
+          },
+          "passwordHash": {
+            "type": "string",
+            "example": "$2b$10$demo"
+          },
+          "ssn": {
+            "type": "string",
+            "example": "123-45-6789"
+          },
+          "apiKey": {
+            "type": "string",
+            "example": "ak_demo_123"
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "order_1002"
+          },
+          "userId": {
+            "type": "string",
+            "example": "user_0002"
+          },
+          "total": {
+            "type": "number",
+            "format": "float",
+            "example": 199.99
+          },
+          "internalNotes": {
+            "type": "string",
+            "example": "High-risk customer, manual review skipped"
+          }
+        }
+      },
+      "PaymentCard": {
+        "type": "object",
+        "properties": {
+          "cardId": {
+            "type": "string",
+            "example": "card_1234"
+          },
+          "userId": {
+            "type": "string",
+            "example": "user_0001"
+          },
+          "cardNumber": {
+            "type": "string",
+            "example": "4111111111111111"
+          },
+          "cvv": {
+            "type": "string",
+            "example": "123"
+          },
+          "expiresAt": {
+            "type": "string",
+            "example": "12/30"
+          }
+        }
+      }
+    }
+  }
+}

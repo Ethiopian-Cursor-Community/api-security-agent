@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ["@cursor/sdk"],
+  turbopack: {
+    resolveAlias: {
+      "@cursor/sdk": "@cursor/sdk/dist/esm/index.js",
+    },
+  },
 };
 
 export default nextConfig;

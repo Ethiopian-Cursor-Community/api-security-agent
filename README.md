@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# API Security Agent
 
-## Getting Started
+Autonomous API penetration testing and remediation platform powered by **Cursor SDK**.
 
-First, run the development server:
+Paste a GitHub repo link → clone → discover OpenAPI → map attack surface → simulate vulnerability scans → explain findings → auto-patch with Cursor SDK → export security reports.
+
+## Features
+
+- **GitHub clone** — clones the repo (public or private with `GITHUB_TOKEN`)
+- **Spec discovery** — finds OpenAPI 3 / Swagger 2 (JSON & YAML) in the clone
+- **API structure mapper** — endpoints, auth, sensitive fields, risk scores
+- **AI scan planner** — rule-based check selection per endpoint
+- **Vulnerability simulator** — IDOR, broken auth, injection, mass assignment, rate limits, and more
+- **Finding analyzer** — severity, business impact, OWASP/CWE mapping
+- **Cursor SDK remediation** — `Agent.prompt` against your repo (or simulated diffs without API key)
+- **Security reports** — executive summary, compliance checklist, printable PDF
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000), paste a GitHub repo URL, then click **Start security scan**. Git must be installed on the server.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cursor SDK remediation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Copy `.env.example` to `.env.local`
+2. Set `CURSOR_API_KEY` from [Cursor Dashboard](https://cursor.com/settings)
+3. Paste a GitHub repo URL in the scan form (set `GITHUB_TOKEN` for private repos)
+4. On any finding, click **Auto-patch with Cursor SDK**
 
-## Learn More
+Without an API key, the platform returns **simulated patch diffs** for demo purposes.
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/
+  page.tsx                 # Upload landing
+  scan/[id]/               # Scan dashboard (progress, map, findings, report)
+  api/
+    scan/                  # POST upload, GET status
+    remediate/             # POST trigger Cursor remediation
+lib/
+  openapi/                 # Parser + API graph mapper
+  scanner/                 # Planner, simulator, analyzer, pipeline
+  remediation/             # Cursor SDK agent
+  reports/                 # Report generator
+  store.ts                 # In-memory job store (MVP)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API routes
 
-## Deploy on Vercel
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/scan` | `{ repoUrl }` — clones GitHub repo, discovers OpenAPI |
+| GET | `/api/scan/:id` | Poll scan job |
+| POST | `/api/remediate` | `{ scanId, findingId }` |
+| GET | `/api/scans` | List recent scans |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS 4
+- [@cursor/sdk](https://cursor.com/docs/api/sdk/typescript)
+- js-yaml
+
+## License
+
+MIT
